@@ -1,0 +1,13 @@
+name = "valheim-sync-coordinator"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# After creating a KV namespace with:
+#   wrangler kv namespace create HOST_KV
+# paste the returned id below.
+kv_namespaces = [
+  { binding = "HOST_KV", id = "3e725a4e4a6e48e8be239b5c8e473693" }
+]
+
+# Set the shared secret (do NOT hardcode it here) with:
+#   wrangler secret put SHARED_SECRET

@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------
+# Real secrets and personal config -- NEVER commit these.
+# Only the .example versions of these should ever be tracked in git.
+# ---------------------------------------------------------------------
+distribute/config.json
+companion/config.json
+moonberry-bot/games.config.js
+
+# ---------------------------------------------------------------------
+# Cloudflare Workers local state -- can contain cached auth tokens
+# ---------------------------------------------------------------------
+.wrangler/
+dev-only/.wrangler/
+moonberry-bot/.wrangler/
+worker/.wrangler/
+
+# ---------------------------------------------------------------------
+# Node dependencies -- reinstalled via `npm install`, never committed
+# ---------------------------------------------------------------------
+node_modules/
+
+# ---------------------------------------------------------------------
+# Python runtime artifacts
+# ---------------------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+
+# ---------------------------------------------------------------------
+# Per-player runtime state -- personal to whoever's running the app,
+# not something that belongs in the shared project history
+# ---------------------------------------------------------------------
+distribute/sync.log
+distribute/player_name.txt
+distribute/local_version.txt
+distribute/local_backups/
+companion/sync.log
+companion/player_name.txt
+companion/local_version.txt
+companion/local_backups/
+
+# ---------------------------------------------------------------------
+# OS/editor noise
+# ---------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp

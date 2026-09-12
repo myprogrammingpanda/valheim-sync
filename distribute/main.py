@@ -43,7 +43,7 @@ import requests
 # Version -- bump this with every release you cut on GitHub. Must exactly
 # match the tag name you give that release (e.g. "1.0.0" for tag "1.0.0").
 # --------------------------------------------------------------------------
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 
 # --------------------------------------------------------------------------
 # Setup / config loading
@@ -230,13 +230,24 @@ def notify_moonberry(host_name: str, join_code: str | None = None, event: str = 
         return  # Moonberry integration not configured, skip silently
 
     try:
-        requests.post(
+        r = requests.post(
             f"{moonberry_url}/notify/valheim",
             headers={"X-Auth": moonberry_secret, "Content-Type": "application/json"},
             json={"host_name": host_name, "join_code": join_code, "event": event},
             timeout=10,
         )
-        log.info("Notified Moonberry (Discord) - event: %s.", event)
+        if r.status_code == 200 and r.json().get("ok"):
+            log.info("Notified Moonberry (Discord) - event: %s.", event)
+        else:
+            # The request reached Moonberry fine, but something failed on
+            # ITS end (bad Discord token, wrong channel, etc) -- this is
+            # exactly the kind of silent failure that used to be
+            # invisible in sync.log before this check existed.
+            log.warning(
+                "Moonberry responded but did NOT confirm success (status %s): %s",
+                r.status_code,
+                r.text[:300],
+            )
     except requests.RequestException as e:
         log.warning("Could not reach Moonberry (Discord notification skipped): %s", e)
 

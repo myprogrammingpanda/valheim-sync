@@ -40,6 +40,12 @@ companion/local_version.txt
 companion/local_backups/
 
 # ---------------------------------------------------------------------
+# Release zip artifacts -- these get uploaded directly to GitHub Releases
+# as assets, not committed to the repo itself
+# ---------------------------------------------------------------------
+distribute/*.zip
+
+# ---------------------------------------------------------------------
 # OS/editor noise
 # ---------------------------------------------------------------------
 .DS_Store

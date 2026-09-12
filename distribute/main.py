@@ -40,6 +40,12 @@ import psutil
 import requests
 
 # --------------------------------------------------------------------------
+# Version -- bump this with every release you cut on GitHub. Must exactly
+# match the tag name you give that release (e.g. "1.0.0" for tag "1.0.0").
+# --------------------------------------------------------------------------
+APP_VERSION = "1.0.0"
+
+# --------------------------------------------------------------------------
 # Setup / config loading
 # --------------------------------------------------------------------------
 
@@ -112,6 +118,67 @@ def get_player_name() -> str:
 
 
 PLAYER_NAME = get_player_name()
+
+# --------------------------------------------------------------------------
+# Update checking (GitHub Releases) -- entirely optional, never blocks or
+# interrupts an actual game session. If github_repo isn't set in
+# config.json, this is skipped silently.
+# --------------------------------------------------------------------------
+
+_last_update_check = 0.0
+_UPDATE_CHECK_INTERVAL_SECONDS = 60 * 60  # once an hour -- GitHub's public
+# API allows 60 unauthenticated requests/hour per IP, so this stays well
+# under that even if several friends check independently.
+
+_cached_update_message = None
+
+
+def check_for_update() -> str | None:
+    """
+    Checks GitHub's public Releases API for the latest published version.
+    Returns a short message to show in the tray tooltip if an update is
+    available, or None if up to date / not configured / check failed.
+    Throttled to once an hour -- returns the cached result in between.
+    """
+    global _last_update_check, _cached_update_message
+
+    repo = CFG.get("github_repo")
+    if not repo:
+        return None  # update checking not configured, skip silently
+
+    now = time.time()
+    if now - _last_update_check < _UPDATE_CHECK_INTERVAL_SECONDS:
+        return _cached_update_message
+
+    _last_update_check = now
+    try:
+        r = requests.get(
+            f"https://api.github.com/repos/{repo}/releases/latest",
+            timeout=10,
+            headers={"Accept": "application/vnd.github+json"},
+        )
+        r.raise_for_status()
+        data = r.json()
+        latest_tag = data.get("tag_name", "").lstrip("v")
+
+        if latest_tag and latest_tag != APP_VERSION:
+            release_url = data.get("html_url", f"https://github.com/{repo}/releases/latest")
+            _cached_update_message = f"Update available: v{latest_tag} — {release_url}"
+            log.info(
+                "A new version is available: v%s (you're on v%s). Get it: %s",
+                latest_tag,
+                APP_VERSION,
+                release_url,
+            )
+        else:
+            _cached_update_message = None
+    except requests.RequestException as e:
+        log.warning("Could not check for updates (non-fatal): %s", e)
+        # keep whatever the previous cached result was rather than
+        # clearing it over a transient network blip
+
+    return _cached_update_message
+
 
 # --------------------------------------------------------------------------
 # Coordinator (Cloudflare Worker) client
@@ -669,8 +736,12 @@ def main_loop(update_tray_text=None, notify=None):
             else:
                 last_notified_host = None
                 log.info("No one hosting. Waiting for 'Play Now' to be clicked.")
+                update_msg = check_for_update()
                 if update_tray_text:
-                    update_tray_text("Idle — right-click tray icon → Play Now to host")
+                    if update_msg:
+                        update_tray_text(f"Idle — Play Now to host | {update_msg}")
+                    else:
+                        update_tray_text("Idle — right-click tray icon → Play Now to host")
 
             is_first_check = False
         except requests.RequestException as e:

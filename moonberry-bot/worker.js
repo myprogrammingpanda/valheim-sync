@@ -27,35 +27,12 @@
  */
 
 import { verifyKey } from "discord-interactions";
-
+import { GAMES } from "./games.config.js";
 
 // ---------------------------------------------------------------------
-// Game registry -- add new games here
+// Game registry lives in games.config.js (gitignored, not committed).
+// See games.config.example.js for the template.
 // ---------------------------------------------------------------------
-const GAMES = {
-  valheim: {
-    displayName: "Valheim",
-    emoji: "🌙",
-    channelId: "1503314566820663306",
-    recommendedPassword: "12345",
-    // This is your EXISTING Valheim coordinator Worker from before --
-    // Moonberry just reads its /status endpoint, it doesn't replace it.
-    statusUrl: "https://valheim-sync-coordinator.baikings.workers.dev/status",
-    statusSecret: "pk5jsbna14R",
-    // Matches the binding name set in wrangler.toml -- lets Moonberry
-    // call the coordinator directly instead of over the public internet.
-    statusBinding: "VALHEIM_COORDINATOR",
-  },
-  // Example of how a second game would be added later:
-  // minecraft: {
-  //   displayName: "Minecraft",
-  //   emoji: "⛏️",
-  //   channelId: "...",
-  //   recommendedPassword: "...",
-  //   statusUrl: "https://minecraft-sync-coordinator.example.workers.dev/status",
-  //   statusSecret: "...",
-  // },
-};
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -134,6 +111,17 @@ const GAME_CHOICES = Object.keys(GAMES).map((key) => ({
   value: key,
 }));
 
+const CHANNEL_KV_PREFIX = "channel:";
+
+async function getChannelForGame(env, gameKey, fallbackChannelId) {
+  const stored = await env.MOONBERRY_KV.get(CHANNEL_KV_PREFIX + gameKey);
+  return stored || fallbackChannelId;
+}
+
+async function setChannelForGame(env, gameKey, channelId) {
+  await env.MOONBERRY_KV.put(CHANNEL_KV_PREFIX + gameKey, channelId);
+}
+
 async function handleStatusCommand(interaction, env) {
   const gameOption = interaction.data.options?.find((o) => o.name === "game");
   const gameKey = gameOption ? gameOption.value : Object.keys(GAMES)[0];
@@ -158,6 +146,25 @@ async function handleStatusCommand(interaction, env) {
   } catch (e) {
     return { content: `⚠️ Couldn't reach the ${game.displayName} coordinator right now.` };
   }
+}
+
+async function handleSetChannelCommand(interaction, env) {
+  const gameOption = interaction.data.options?.find((o) => o.name === "game");
+  const gameKey = gameOption ? gameOption.value : Object.keys(GAMES)[0];
+  const game = GAMES[gameKey];
+
+  if (!game) {
+    return { content: `Unknown game "${gameKey}".` };
+  }
+
+  // The channel this command was typed in becomes the new notification
+  // target -- no need to paste a channel ID manually.
+  const channelId = interaction.channel_id;
+  await setChannelForGame(env, gameKey, channelId);
+
+  return {
+    content: `${game.emoji} Got it — ${game.displayName} hosting notifications will now be posted in this channel.`,
+  };
 }
 
 // ---------------------------------------------------------------------
@@ -186,6 +193,11 @@ export default {
       // Slash command invocation
       if (interaction.type === 2 && interaction.data.name === "status") {
         const reply = await handleStatusCommand(interaction, env);
+        return json({ type: 4, data: reply });
+      }
+
+      if (interaction.type === 2 && interaction.data.name === "set-channel") {
+        const reply = await handleSetChannelCommand(interaction, env);
         return json({ type: 4, data: reply });
       }
 
@@ -225,7 +237,8 @@ export default {
       }
 
       try {
-        await postDiscordMessage(env, game.channelId, message);
+        const targetChannelId = await getChannelForGame(env, gameKey, game.channelId);
+        await postDiscordMessage(env, targetChannelId, message);
         return json({ ok: true });
       } catch (e) {
         return json({ ok: false, error: e.message }, 500);

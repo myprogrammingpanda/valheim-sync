@@ -2,10 +2,22 @@ name = "moonberry"
 main = "worker.js"
 compatibility_date = "2026-08-01"
 
+# KV namespace for storing which channel each game's notifications go to,
+# settable dynamically via the /set-channel command instead of hardcoding
+# in this file.
+kv_namespaces = [
+  { binding = "MOONBERRY_KV", id = "7cde9a638bb04a39b54fdb99cce2003c" }
+]
+
 # Service Binding: lets this Worker call the Valheim coordinator Worker
 # DIRECTLY (bypassing the public internet entirely), which is required --
 # Cloudflare blocks a Worker from fetch()-ing another Worker's public
 # *.workers.dev URL as a loop-prevention measure (error 1042).
+# IMPORTANT: this [[services]] section must come AFTER any plain
+# key = value settings like kv_namespaces above -- in TOML, everything
+# after a [[table]] header is considered part of that table until a new
+# header appears, so a plain key placed below it gets silently absorbed
+# into the wrong section instead of being read as a top-level setting.
 [[services]]
 binding = "VALHEIM_COORDINATOR"
 service = "valheim-sync-coordinator"

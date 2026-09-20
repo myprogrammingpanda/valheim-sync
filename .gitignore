@@ -4,14 +4,12 @@
 # ---------------------------------------------------------------------
 distribute/config.json
 companion/config.json
-moonberry-bot/games.config.js
 
 # ---------------------------------------------------------------------
 # Cloudflare Workers local state -- can contain cached auth tokens
 # ---------------------------------------------------------------------
 .wrangler/
 dev-only/.wrangler/
-moonberry-bot/.wrangler/
 worker/.wrangler/
 
 # ---------------------------------------------------------------------

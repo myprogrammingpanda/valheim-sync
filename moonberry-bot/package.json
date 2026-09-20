@@ -1,7 +1,0 @@
-{
-  "name": "moonberry-bot",
-  "private": true,
-  "dependencies": {
-    "discord-interactions": "^4.0.0"
-  }
-}

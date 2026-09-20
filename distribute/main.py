@@ -43,7 +43,7 @@ import requests
 # Version -- bump this with every release you cut on GitHub. Must exactly
 # match the tag name you give that release (e.g. "1.0.0" for tag "1.0.0").
 # --------------------------------------------------------------------------
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 
 # --------------------------------------------------------------------------
 # Setup / config loading
@@ -262,7 +262,12 @@ def release_host(save_key: str | None = None) -> dict:
     return r.json()
 
 
-JOIN_CODE_PATTERN = re.compile(r"join\s*code[^0-9A-Za-z]{0,5}([0-9A-Za-z]{4,8})", re.IGNORECASE)
+JOIN_CODE_PATTERN = re.compile(r"with join code (\w{4,8}) is active", re.IGNORECASE)
+# NOTE: Valheim generates a transitional "registered with join code X"
+# line immediately followed by a DIFFERENT, actually-active code (the
+# one shown in the pause menu). Matching on "is active" specifically
+# avoids grabbing the wrong (superseded) code -- confirmed as a real
+# mismatch with the old, more permissive pattern.
 
 
 def try_scrape_join_code() -> str | None:
@@ -283,9 +288,9 @@ def try_scrape_join_code() -> str | None:
         if log_path.exists():
             try:
                 text = log_path.read_text(encoding="utf-8", errors="ignore")
-                match = JOIN_CODE_PATTERN.search(text)
-                if match:
-                    return match.group(1)
+                matches = JOIN_CODE_PATTERN.findall(text)
+                if matches:
+                    return matches[-1]  # most recent "is active" code
             except Exception:
                 pass
         time.sleep(3)
@@ -319,11 +324,22 @@ def r2_client():
     access_key = CFG.get("storage_access_key_id", CFG.get("r2_access_key_id"))
     secret_key = CFG.get("storage_secret_access_key", CFG.get("r2_secret_access_key"))
 
+    from botocore.config import Config as BotoConfig
+
     return boto3.client(
         "s3",
         endpoint_url=endpoint,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
+        # Without explicit timeouts, a network hiccup can leave an
+        # upload/download hanging far longer than reasonable for a
+        # small save file -- this makes failures fail fast with a clear
+        # error instead of silently sitting there indefinitely.
+        config=BotoConfig(
+            connect_timeout=15,
+            read_timeout=120,
+            retries={"max_attempts": 2, "mode": "standard"},
+        ),
     )
 
 
@@ -642,11 +658,21 @@ def become_host_and_play():
 
         wait_for_valheim_exit()
 
-        log.info("Zipping and uploading save...")
         out_zip = APP_DIR / "_outgoing_save.zip"
+
+        zip_start = time.time()
+        log.info("Zipping save...")
         zip_world(out_zip)
+        zip_seconds = time.time() - zip_start
+        zip_size_mb = out_zip.stat().st_size / (1024 * 1024)
+        log.info("Zip complete: %.1f MB in %.1fs.", zip_size_mb, zip_seconds)
+
         uploaded_key = new_save_key()
+        upload_start = time.time()
+        log.info("Uploading save as '%s'...", uploaded_key)
         upload_save(out_zip, uploaded_key)
+        upload_seconds = time.time() - upload_start
+        log.info("Upload complete in %.1fs.", upload_seconds)
         out_zip.unlink(missing_ok=True)
         uploaded_successfully = True
 

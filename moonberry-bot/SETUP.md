@@ -48,7 +48,7 @@ valheim: {
   channelId: "PASTE_YOUR_CHANNEL_ID",
   recommendedPassword: "PASTE_YOUR_GROUP_PASSWORD",
   statusUrl: "https://valheim-sync-coordinator.baikings.workers.dev/status",
-  statusSecret: "pk5jsbna14R",   // same secret as your existing coordinator
+  statusSecret: "REPLACE_WITH_YOUR_COORDINATOR_SHARED_SECRET",   // same secret as your existing coordinator
 },
 ```
 
